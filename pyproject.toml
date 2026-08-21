@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-videoframepicker"
 description = "Load an MP4/AVI video, scrub to any frame inside the node and output the visible frame as an IMAGE or save it as JPG/PNG. Shows video and frame metadata."
-version = "0.1.0"
+version = "0.1.1"
 license = { file = "LICENSE" }
 readme = "README.md"
 requires-python = ">=3.9"

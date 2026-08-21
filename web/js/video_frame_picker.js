@@ -312,17 +312,10 @@ app.registerExtension({
       uploadW.tooltip = "Copy an MP4/AVI file into the ComfyUI input folder and select it.";
       uploadW.serialize = false;
 
-      // move upload button + preview right below the video combo
-      const reorder = () => {
-        const ws = node.widgets;
-        const i = ws.indexOf(videoW);
-        for (const w of [uploadW, widget]) {
-          const j = ws.indexOf(w);
-          if (j > -1) ws.splice(j, 1);
-        }
-        ws.splice(i + 1, 0, uploadW, widget);
-      };
-      reorder();
+      // NOTE: do not reorder widgets. ComfyUI restores widgets_values by position,
+      // so inserting non-serialized widgets between inputs would shift the values.
+      uploadW.options = { ...(uploadW.options || {}), serialize: false };
+      widget.options = { ...(widget.options || {}), serialize: false };
 
       node.size = [Math.max(node.size[0], 420), node.computeSize()[1]];
       node.setDirtyCanvas(true, true);
