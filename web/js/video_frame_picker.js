@@ -19,8 +19,6 @@ const CSS = `
 .vfp-panel h4 { margin:0 0 2px; font-size:10px; text-transform:uppercase; letter-spacing:.04em; opacity:.7; font-weight:600; }
 .vfp-grid { display:grid; grid-template-columns:auto 1fr; column-gap:8px; row-gap:0; }
 .vfp-grid span:nth-child(odd) { opacity:.65; }
-.vfp-thumb { width:96px; height:54px; object-fit:contain; background:#000; border-radius:3px; flex:0 0 auto; }
-.vfp-frame { display:flex; gap:8px; align-items:flex-start; }
 .vfp-export { background: var(--comfy-menu-bg,#444) !important; font-weight:600; }
 .vfp-status { font-size:10px; opacity:.8; min-height:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .vfp-status.err { color:#f66; opacity:1; }
@@ -83,7 +81,6 @@ app.registerExtension({
       // ---------- state ----------
       let info = null;          // metadata from /info
       let syncing = false;      // prevents feedback loops between player and widget
-      let thumbTimer = null;
 
       // ---------- DOM ----------
       const root = el("div", "vfp-root");
@@ -119,21 +116,17 @@ app.registerExtension({
 
       const fPanel = el("div", "vfp-panel");
       fPanel.appendChild(el("h4", null, "Selected frame"));
-      const fRow = el("div", "vfp-frame");
-      const thumb = el("img", "vfp-thumb");
-      thumb.title = "Exactly decoded frame (what the IMAGE output will contain)";
-      thumb.alt = "";
       const fGrid = el("div", "vfp-grid");
-      fRow.append(thumb, fGrid);
-      fPanel.appendChild(fRow);
+      fPanel.appendChild(fGrid);
       root.appendChild(fPanel);
 
       const widget = node.addDOMWidget("vfp_preview", "VFP", root, {
         serialize: false,
         hideOnZoom: false,
-        getMinHeight: () => 360,
+        getMinHeight: () => 380,
       });
-      widget.computeSize = () => [node.size[0], 380];
+      widget.computeSize = () => [node.size[0], 520];
+      root.style.overflowY = "auto";
 
       // ---------- helpers ----------
       const setStatus = (msg, cls = "") => { status.textContent = msg; status.className = "vfp-status " + cls; };
@@ -157,11 +150,6 @@ app.registerExtension({
           ["Size", info ? `${info.width} × ${info.height}` : "-"],
           ["File", info ? outputName(idx) : "-"],
         ]);
-        clearTimeout(thumbTimer);
-        thumbTimer = setTimeout(() => {
-          if (!videoW.value) return;
-          thumb.src = api.apiURL(`${API}/frame?video=${encodeURIComponent(videoW.value)}&frame_index=${idx}&t=${Date.now()}`);
-        }, 150);
       };
 
       const outputName = (idx) => {
@@ -190,7 +178,6 @@ app.registerExtension({
       const loadVideo = async () => {
         const name = videoW.value;
         info = null;
-        thumb.removeAttribute("src");
         if (!name) { fill(vGrid, [["No video", "Use Upload or pick one"]]); return; }
         setStatus("Loading…");
         try {
@@ -317,7 +304,7 @@ app.registerExtension({
       uploadW.options = { ...(uploadW.options || {}), serialize: false };
       widget.options = { ...(widget.options || {}), serialize: false };
 
-      node.size = [Math.max(node.size[0], 420), node.computeSize()[1]];
+      node.size = [Math.max(node.size[0], 440), node.computeSize()[1]];
       node.setDirtyCanvas(true, true);
 
       // initial load (also covers workflows restored from JSON)

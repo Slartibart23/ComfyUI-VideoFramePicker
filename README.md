@@ -9,7 +9,7 @@ A ComfyUI custom node that loads a video (MP4, AVI and more), lets you **scrub t
 - **In-node video player** with frame-accurate stepping (±1 / ±10 / first / last, arrow keys, Shift+arrows).
 - **Live metadata panels**
   - Video: file name, container/codec, resolution, FPS, frame count, duration, file size, audio track.
-  - Selected frame: frame number (1-based), timestamp, size, resulting file name and an **exactly decoded thumbnail** (browser players are not always frame-accurate; the thumbnail shows what the backend will really output).
+  - Selected frame: frame number (1-based), timestamp, size and the resulting file name.
 - **Two export paths**
   - `IMAGE` output when the workflow runs – ready for VAE Encode, ControlNet, IPAdapter, upscalers, …
   - **"Save frame now"** button writes the frame immediately without queueing the workflow.
@@ -69,23 +69,6 @@ Restart ComfyUI.
 - Frame numbering is **1-based** (frame 1 = first frame), like most NLEs.
 - The `IMAGE` output is decoded losslessly from the source; `file_format`/`jpg_quality` only affect the saved file.
 - Seeking accuracy: OpenCV seeks by keyframe on some codecs. The node verifies the position and falls back to a short sequential decode, so the output frame matches `frame_index`.
-
-- ## Large videos (413 – Request Entity Too Large)
-
-The **Upload video** button uses ComfyUI's built-in upload endpoint, which rejects
-files larger than 100 MB by default. This is a ComfyUI limit, not a limit of the node.
-
-Two workarounds:
-
-1. **Copy the file manually** into `ComfyUI/input/`, then reopen the `video`
-   dropdown in the node (reload the page if it doesn't show up). The node reads
-   from this folder anyway, so no upload is needed.
-2. **Raise the limit** by starting ComfyUI with `--max-upload-size 2000`
-   (value in MB). Portable: append it to the python line in `run_nvidia_gpu.bat`.
-   Desktop app: Settings → Server-Config → Max upload size.
-
-Video length itself is not limited. The node decodes only a single frame, so memory
-usage does not depend on the duration of the video. 
 
 ## License
 

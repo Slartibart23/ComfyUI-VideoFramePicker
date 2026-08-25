@@ -11,7 +11,6 @@ class VideoFramePicker:
         return {
             "required": {
                 "video": (vu.list_input_videos(), {
-                    "video_upload": True,
                     "tooltip": "Video file from the ComfyUI input folder. Use the Upload button "
                                "to add MP4 or AVI files. AVI is transcoded once for the in-node preview.",
                 }),
