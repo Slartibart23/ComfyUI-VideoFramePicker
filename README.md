@@ -7,14 +7,16 @@ A ComfyUI custom node that loads a video (MP4, AVI and more), lets you **scrub t
 ## Features
 
 - **In-node video player** with frame-accurate stepping (±1 / ±10 / first / last, arrow keys, Shift+arrows).
-- **Live metadata panels**
-  - Video: file name, container/codec, resolution, FPS, frame count, duration, file size, audio track.
-  - Selected frame: frame number (1-based), timestamp, size and the resulting file name.
+  The player fills the node and grows when you resize it; portrait videos are supported.
+- **Drag & drop**: drop a video file onto the node (or the player) to upload and select it.
+- **Live metadata**
+  - Summary line: frame number (1-based), timestamp, size and the resulting file name.
+  - Click the summary line to expand the video details: file name, container/codec, resolution, FPS, frame count, duration, file size, audio track.
 - **Two export paths**
   - `IMAGE` output when the workflow runs – ready for VAE Encode, ControlNet, IPAdapter, upscalers, …
   - **"Save frame now"** button writes the frame immediately without queueing the workflow.
 - Output file naming: `<video name>_frameXXXXX.jpg` (at least 5 digits, grows automatically for long videos).
-- Extra outputs: `frame_index`, `fps`, `width`, `height`, `saved_path`.
+- Extra outputs: `frame_index`, `fps`, `width`, `height`, `saved_path`, `filename`, `frame_filename`.
 - MP4/WebM are previewed natively. AVI, MOV, MKV are transcoded once with ffmpeg for the preview (cached in the temp folder); decoding for the outputs always uses the original file.
 
 ## Installation
@@ -36,7 +38,8 @@ Restart ComfyUI.
 ## Usage
 
 1. Add **video → frame picker → Video Frame Picker**.
-2. Click **Upload video** (copies the file to `ComfyUI/input`) or pick an existing file from the dropdown.
+2. Drag a video file onto the node, click **Upload video** (both copy the file to `ComfyUI/input`) or pick an existing file from the dropdown.
+   Selecting a new video resizes the node to the video's aspect ratio; drag the node corner to make the preview larger or smaller.
 3. Scrub the player or use the step buttons. `frame_index` follows the player and vice versa.
 4. Either
    - connect the `image` output and queue the workflow, or
@@ -63,12 +66,18 @@ Restart ComfyUI.
 | `fps` | FLOAT | Source frame rate. |
 | `width`, `height` | INT | Frame dimensions. |
 | `saved_path` | STRING | Absolute path of the saved file, empty if nothing was saved. |
+| `filename` | STRING | Video file name without extension, e.g. `clip` for `clip.mp4`. |
+| `frame_filename` | STRING | Frame name without extension, e.g. `clip_frame00123` – same stem as saved files, available in every `output_mode` (handy as `filename_prefix` for Save Image). |
 
 ## Notes
 
 - Frame numbering is **1-based** (frame 1 = first frame), like most NLEs.
 - The `IMAGE` output is decoded losslessly from the source; `file_format`/`jpg_quality` only affect the saved file.
 - Seeking accuracy: OpenCV seeks by keyframe on some codecs. The node verifies the position and falls back to a short sequential decode, so the output frame matches `frame_index`.
+
+### Large videos (upload error 413)
+
+ComfyUI rejects uploads larger than its upload limit (default 100 MB) – this applies to drag & drop and the Upload button alike. Either start ComfyUI with a higher limit, e.g. `--max-upload-size 2000` (MB), or copy the file into `ComfyUI/input` and pick it from the dropdown.
 
 ## License
 

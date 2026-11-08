@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.6 - 2026-11-08
+- Player fills the node: it now grows with the node in width and height instead of being fixed to a 16:9 box in a 520 px area. Controls and info can no longer slide out of view when the node is resized.
+- Selecting a new video (dropdown, upload, drag & drop) resizes the node to the video's aspect ratio; portrait videos get a square player.
+- New nodes start at 640 px width with a 16:9 player.
+- Video details are collapsed into a one-line summary (frame, time, size, target file name); click it to expand. The state is saved with the workflow.
+- Drag & drop: drop a video file onto the node or the player to upload and select it.
+- Upload errors caused by ComfyUI's upload size limit (413) now explain how to raise it (`--max-upload-size`).
+- New outputs `filename` (video name without extension) and `frame_filename` (e.g. `clip_frame00123`). They are appended, so existing links stay intact.
+- The hidden file input for the Upload button is created on demand and no longer left in the page.
+
 ## 0.1.5 - 2026-08-25
 - Removed the decoded-frame preview from the Selected frame panel; the player is the single preview. The panel keeps frame number, timestamp, size and target filename. The /frame endpoint remains available.
 

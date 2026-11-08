@@ -46,8 +46,10 @@ class VideoFramePicker:
             }
         }
 
-    RETURN_TYPES = ("IMAGE", "INT", "FLOAT", "INT", "INT", "STRING")
-    RETURN_NAMES = ("image", "frame_index", "fps", "width", "height", "saved_path")
+    # New outputs are only ever appended: existing links refer to outputs by slot index.
+    RETURN_TYPES = ("IMAGE", "INT", "FLOAT", "INT", "INT", "STRING", "STRING", "STRING")
+    RETURN_NAMES = ("image", "frame_index", "fps", "width", "height", "saved_path",
+                    "filename", "frame_filename")
     OUTPUT_TOOLTIPS = (
         "The selected frame as a standard ComfyUI IMAGE tensor (1, H, W, 3), RGB, 0-1.",
         "The 1-based index of the frame that was actually decoded (clamped to the video length).",
@@ -55,6 +57,10 @@ class VideoFramePicker:
         "Frame width in pixels.",
         "Frame height in pixels.",
         "Absolute path of the saved file, or an empty string if nothing was saved.",
+        "File name of the source video without extension (e.g. 'clip' for clip.mp4).",
+        "Name for the selected frame without extension (e.g. 'clip_frame00123'), "
+        "the same stem used for saved files. Works in every output_mode, "
+        "e.g. as filename_prefix for a Save Image node.",
     )
     FUNCTION = "pick"
     CATEGORY = "video/frame picker"
@@ -92,8 +98,11 @@ class VideoFramePicker:
             saved_path = vu.save_frame(rgb, path, idx, total, output_dir,
                                        fmt=file_format, quality=jpg_quality, overwrite=overwrite)
 
+        filename = os.path.splitext(os.path.basename(path))[0]
+        frame_filename = os.path.splitext(vu.build_output_filename(path, idx, total, "jpg"))[0]
+
         image = vu.frame_to_tensor(rgb)
-        return (image, idx, float(info["fps"]), w, h, saved_path)
+        return (image, idx, float(info["fps"]), w, h, saved_path, filename, frame_filename)
 
 
 NODE_CLASS_MAPPINGS = {
