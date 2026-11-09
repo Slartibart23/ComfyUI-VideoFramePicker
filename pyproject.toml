@@ -15,9 +15,9 @@ classifiers = [
 ]
 
 [project.urls]
-Repository = "https://github.com/slartibart23b/ComfyUI-VideoFramePicker"
-Documentation = "https://github.com/slartibart23b/ComfyUI-VideoFramePicker#readme"
-"Bug Tracker" = "https://github.com/slartibart23b/ComfyUI-VideoFramePicker/issues"
+Repository = "https://github.com/Slartibart23/ComfyUI-VideoFramePicker"
+Documentation = "https://github.com/Slartibart23/ComfyUI-VideoFramePicker#readme"
+"Bug Tracker" = "https://github.com/Slartibart23/ComfyUI-VideoFramePicker/issues"
 
 [tool.comfy]
 PublisherId = "slartibart23b"

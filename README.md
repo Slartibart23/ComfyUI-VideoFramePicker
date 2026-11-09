@@ -27,7 +27,7 @@ Search for **Video Frame Picker** and install.
 ### Manual
 ```bash
 cd ComfyUI/custom_nodes
-git clone https://github.com/slartibart23b/ComfyUI-VideoFramePicker.git
+git clone https://github.com/Slartibart23/ComfyUI-VideoFramePicker.git
 cd ComfyUI-VideoFramePicker
 pip install -r requirements.txt
 ```
