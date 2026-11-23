@@ -122,7 +122,8 @@ export function attachMask({ node, stage, player, getFrame, setStatus, relayout 
   const dataW = getWidget(node, "crop_data");
   const cropW = getWidget(node, "crop_to_mask");
   if (!srcW || !dataW) return null;
-  dataW.hidden = true;
+  // the controls live in the toolbar below the player instead of the widget list
+  for (const w of [dataW, srcW, fillW, cropW]) if (w) w.hidden = true;
 
   let data = { strokes: [] };
   let lastValue = null;
@@ -133,6 +134,8 @@ export function attachMask({ node, stage, player, getFrame, setStatus, relayout 
   let drag = null;
   let hover = null;
   let lastImported = "";
+  let shownSrc = null;
+  let shownCrop = false;
 
   const canvas = el("canvas");
   canvas.style.cssText = "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;";
@@ -140,8 +143,12 @@ export function attachMask({ node, stage, player, getFrame, setStatus, relayout 
   const shapeCanvas = el("canvas");
 
   // ---------- toolbar ----------
+  const bar = el("div");
+  bar.style.cssText = "display:flex;flex-direction:column;gap:4px;flex:0 0 auto;";
+  const srcRow = el("div", "vfp-row");
   const row = el("div", "vfp-row");
   row.hidden = true;
+  bar.append(srcRow, row);
   const btn = (text, title, fn) => {
     const b = el("button");
     b.textContent = text;
@@ -149,6 +156,19 @@ export function attachMask({ node, stage, player, getFrame, setStatus, relayout 
     b.onclick = fn;
     return b;
   };
+  const srcBtns = {};
+  for (const [name, text] of [["none", "No mask"], ["MaskEditor", "MaskEditor"], ["rectangle", "Rectangle"], ["freehand", "Freehand"]]) {
+    srcBtns[name] = btn(text, `mask_source = ${name}`, () => { srcW.value = name; srcW.callback?.(name); });
+    srcRow.append(srcBtns[name]);
+  }
+  const cropBtn = btn("Crop", "crop_to_mask: crop image and mask to the bounding box of the mask", () => {
+    cropW.value = !cropW.value;
+    cropW.callback?.(cropW.value);
+  });
+  const fillSel = el("select");
+  for (const c of fillW?.options?.values || []) fillSel.add(new Option(c, c));
+  fillSel.title = "fill_color: colour outside the freehand shape";
+  fillSel.onchange = () => { fillW.value = fillSel.value; fillW.callback?.(fillW.value); };
   const editBtn = btn("✎ Edit", "Draw on the player. Click again to use the player controls", () => setEditing(!editing));
   const tools = {
     brush: btn("Brush", "Paint the area to keep", () => { tool = "brush"; refreshToolbar(); }),
@@ -162,18 +182,22 @@ export function attachMask({ node, stage, player, getFrame, setStatus, relayout 
   size.value = "4";
   size.style.width = "70px";
   size.title = "Brush size";
-  const clearBtn = btn("Delete mask", "Delete the rectangle, freehand shape and MaskEditor mask (the paint colour stays)", () => {
+  const clearBtn = btn("Delete mask", "Delete the rectangle, freehand shape and MaskEditor mask (the paint colour stays) and set mask_source back to none", () => {
     data.rect = null;
     data.strokes = [];
     delete data.mask;
     maskImg = null;
+    srcW.value = "none";
+    setEditing(false);
     save();
+    relayout();
   });
   const meBtn = btn("Mask Editor", "Paint a mask or colour on the current frame in ComfyUI's MaskEditor", () => openMaskEditor());
   const meDelPaint = btn("Remove paint", "Delete the colour painted in the MaskEditor", () => { delete data.paint; paintImg = null; save(); });
+  srcRow.append(cropBtn);
   const hint = el("span");
   hint.style.cssText = "opacity:.7;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
-  row.append(editBtn, tools.brush, tools.lasso, tools.erase, size, clearBtn, meBtn, meDelPaint, hint);
+  row.append(editBtn, tools.brush, tools.lasso, tools.erase, size, fillSel, clearBtn, meBtn, meDelPaint, hint);
 
   const mode = () => srcW.value || "none";
   const drawMode = () => mode() === "rectangle" || mode() === "freehand";
@@ -187,8 +211,15 @@ export function attachMask({ node, stage, player, getFrame, setStatus, relayout 
 
   function refreshToolbar() {
     const m = mode();
+    shownSrc = srcW.value;
+    shownCrop = !!cropW?.value;
     if (!drawMode() && editing) setEditing(false);
     row.hidden = m === "none";
+    for (const [k, b] of Object.entries(srcBtns)) b.style.background = k === m ? "#2a6db0" : "";
+    cropBtn.style.display = m === "none" ? "none" : "";
+    cropBtn.style.background = cropW?.value ? "#2a6db0" : "";
+    fillSel.style.display = m === "freehand" ? "" : "none";
+    fillSel.value = fillW?.value || "yellow";
     editBtn.style.display = drawMode() ? "" : "none";
     clearBtn.style.display = "";
     size.style.display = m === "freehand" ? "" : "none";
@@ -442,6 +473,7 @@ export function attachMask({ node, stage, player, getFrame, setStatus, relayout 
       importEditorResult(ref);
     }
     if (dataW.value !== lastValue && !drag) reload();
+    else if (srcW.value !== shownSrc || !!cropW?.value !== shownCrop) refreshToolbar();
   }
 
   const chain = (w, fn) => {
@@ -451,11 +483,11 @@ export function attachMask({ node, stage, player, getFrame, setStatus, relayout 
   };
   chain(srcW, () => { setEditing(drawMode()); relayout(); });
   chain(fillW, draw);
-  chain(cropW, draw);
+  chain(cropW, refreshToolbar);
   size.oninput = draw;
   new ResizeObserver(draw).observe(stage);
   player.addEventListener("loadedmetadata", draw);
 
   reload();
-  return { row, poll, reload };
+  return { row: bar, poll, reload };
 }

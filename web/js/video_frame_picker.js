@@ -175,7 +175,7 @@ app.registerExtension({
         getFrame: () => frameW.value || 1,
         relayout: () => relayout(),
       });
-      if (mask) root.insertBefore(mask.row, summary);
+      if (mask) root.insertBefore(mask.row, ctl);
 
       const dropOverlay = el("div", "vfp-drop", "Drop video to load it");
       root.appendChild(dropOverlay);

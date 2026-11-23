@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1 - 2026-11-23
+- Mask source, crop and fill colour moved from the widget list to a toolbar directly below the player (No mask / MaskEditor / Rectangle / Freehand buttons).
+- "Delete mask" now also resets mask_source to none and releases the player controls.
+
 ## 0.2.0 - 2026-11-23
 - Mask support like ComfyUI-CastLibrary: new inputs `mask_source` (none / MaskEditor / rectangle / freehand), `fill_color`, `crop_to_mask` and a hidden `crop_data`, plus a new `mask` output. Masks are stored in the workflow. A "Delete mask" button clears the mask.
 
