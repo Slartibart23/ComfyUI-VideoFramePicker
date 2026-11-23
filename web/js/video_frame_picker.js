@@ -1,5 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
+import { attachMask } from "./video_frame_picker_mask.js";
 
 const NODE_NAME = "VideoFramePicker";
 const API = "/video_frame_picker";
@@ -169,6 +170,13 @@ app.registerExtension({
       const status = el("div", "vfp-status", "");
       root.appendChild(status);
 
+      const mask = attachMask({
+        node, stage, player, setStatus: (m, c) => setStatus(m, c),
+        getFrame: () => frameW.value || 1,
+        relayout: () => relayout(),
+      });
+      if (mask) root.insertBefore(mask.row, summary);
+
       const dropOverlay = el("div", "vfp-drop", "Drop video to load it");
       root.appendChild(dropOverlay);
 
@@ -177,7 +185,7 @@ app.registerExtension({
       const chromeHeight = () => {
         let h = 0;
         let n = 0;
-        for (const child of [ctl, summary, details, status]) {
+        for (const child of [ctl, ...(mask ? [mask.row] : []), summary, details, status]) {
           if (child.hidden) continue;
           const fallback = child === details ? 74 : child === status ? 13 : 24;
           h += child.offsetHeight || fallback;
@@ -493,7 +501,13 @@ app.registerExtension({
       node.onConfigure = function () {
         const res = onConfigure?.apply(this, arguments);
         setDetailsOpen(!!node.properties?.vfp_details_open);
+        mask?.reload();
         return res;
+      };
+      const onDrawBackground = node.onDrawBackground;
+      node.onDrawBackground = function () {
+        mask?.poll();
+        return onDrawBackground?.apply(this, arguments);
       };
 
       // Default size for a new node: 640 px wide, player area 16:9. A saved workflow

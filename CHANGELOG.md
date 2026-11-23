@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.2.0 - 2026-11-23
+- Mask support like ComfyUI-CastLibrary: new inputs `mask_source` (none / MaskEditor / rectangle / freehand), `fill_color`, `crop_to_mask` and a hidden `crop_data`, plus a new `mask` output. Masks are stored in the workflow. A "Delete mask" button clears the mask.
+
 ## 0.1.6 - 2026-11-08
 - Player fills the node: it now grows with the node in width and height instead of being fixed to a 16:9 box in a 520 px area. Controls and info can no longer slide out of view when the node is resized.
 - Selecting a new video (dropdown, upload, drag & drop) resizes the node to the video's aspect ratio; portrait videos get a square player.

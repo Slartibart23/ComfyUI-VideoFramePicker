@@ -1,5 +1,8 @@
 import os
 
+import torch
+
+from . import mask_utils as mu
 from . import video_utils as vu
 
 
@@ -43,13 +46,34 @@ class VideoFramePicker:
                     "tooltip": "Overwrite an existing file with the same name. "
                                "Off: append _001, _002, ... instead.",
                 }),
+                "mask_source": (mu.MASK_SOURCES, {
+                    "default": "none",
+                    "tooltip": "Which mask comes out at 'mask'. none: empty mask. "
+                               "MaskEditor: painted with the Mask Editor button (paint colour is drawn into the image). "
+                               "rectangle: drag a rectangle over the player. "
+                               "freehand: paint the area to keep, the rest of the image is filled with fill_color. "
+                               "The mask is stored in the workflow and applies to whichever frame is selected.",
+                }),
+                "fill_color": (list(mu.FILL_COLORS), {
+                    "default": "yellow",
+                    "tooltip": "Colour for the area outside the freehand shape.",
+                }),
+                "crop_data": ("STRING", {
+                    "default": "",
+                    "tooltip": "Written by the editor in the node preview.",
+                }),
+                "crop_to_mask": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "Crop image and mask to the bounding box of the mask. "
+                               "Without a mask nothing is cropped. The saved file is never cropped.",
+                }),
             }
         }
 
     # New outputs are only ever appended: existing links refer to outputs by slot index.
-    RETURN_TYPES = ("IMAGE", "INT", "FLOAT", "INT", "INT", "STRING", "STRING", "STRING")
+    RETURN_TYPES = ("IMAGE", "INT", "FLOAT", "INT", "INT", "STRING", "STRING", "STRING", "MASK")
     RETURN_NAMES = ("image", "frame_index", "fps", "width", "height", "saved_path",
-                    "filename", "frame_filename")
+                    "filename", "frame_filename", "mask")
     OUTPUT_TOOLTIPS = (
         "The selected frame as a standard ComfyUI IMAGE tensor (1, H, W, 3), RGB, 0-1.",
         "The 1-based index of the frame that was actually decoded (clamped to the video length).",
@@ -61,6 +85,7 @@ class VideoFramePicker:
         "Name for the selected frame without extension (e.g. 'clip_frame00123'), "
         "the same stem used for saved files. Works in every output_mode, "
         "e.g. as filename_prefix for a Save Image node.",
+        "Mask from mask_source, same size as the image.",
     )
     FUNCTION = "pick"
     CATEGORY = "video/frame picker"
@@ -69,10 +94,12 @@ class VideoFramePicker:
                    "<video>_frameXXXXX. The 'Save frame now' button exports without running the workflow.")
 
     @classmethod
-    def IS_CHANGED(cls, video, frame_index, output_mode, output_dir, file_format, jpg_quality, overwrite):
+    def IS_CHANGED(cls, video, frame_index, output_mode, output_dir, file_format, jpg_quality, overwrite,
+                   mask_source, fill_color, crop_data, crop_to_mask):
         try:
             path = vu.resolve_video_path(video)
-            return f"{path}|{os.path.getmtime(path)}|{frame_index}|{output_mode}|{output_dir}|{file_format}|{jpg_quality}|{overwrite}"
+            return (f"{path}|{os.path.getmtime(path)}|{frame_index}|{output_mode}|{output_dir}|{file_format}|"
+                    f"{jpg_quality}|{overwrite}|{mask_source}|{fill_color}|{crop_data}|{crop_to_mask}")
         except Exception:
             return float("nan")
 
@@ -84,14 +111,14 @@ class VideoFramePicker:
             return str(e)
         return True
 
-    def pick(self, video, frame_index, output_mode, output_dir, file_format, jpg_quality, overwrite):
+    def pick(self, video, frame_index, output_mode, output_dir, file_format, jpg_quality, overwrite,
+             mask_source, fill_color, crop_data, crop_to_mask):
         path = vu.resolve_video_path(video)
         info = vu.probe_video(path)
         total = info["frame_count"]
         idx = max(1, min(int(frame_index), total)) if total > 0 else int(frame_index)
 
         rgb = vu.read_frame(path, idx)
-        h, w = rgb.shape[:2]
 
         saved_path = ""
         if output_mode in ("save_file", "both"):
@@ -101,8 +128,10 @@ class VideoFramePicker:
         filename = os.path.splitext(os.path.basename(path))[0]
         frame_filename = os.path.splitext(vu.build_output_filename(path, idx, total, "jpg"))[0]
 
-        image = vu.frame_to_tensor(rgb)
-        return (image, idx, float(info["fps"]), w, h, saved_path, filename, frame_filename)
+        out_rgb, mask = mu.apply_mask(rgb, mask_source, fill_color, crop_data, crop_to_mask)
+        h, w = out_rgb.shape[:2]
+        return (vu.frame_to_tensor(out_rgb), idx, float(info["fps"]), w, h, saved_path, filename, frame_filename,
+                torch.from_numpy(mask)[None, ...])
 
 
 NODE_CLASS_MAPPINGS = {

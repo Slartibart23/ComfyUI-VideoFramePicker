@@ -56,6 +56,9 @@ Restart ComfyUI.
 | `file_format` | `jpg` or `png`. |
 | `jpg_quality` | 1–100, JPEG only. |
 | `overwrite` | Overwrite existing files, otherwise append `_001`, `_002`, … |
+| `mask_source` | `none` (empty mask), `MaskEditor` (mask and paint colour painted in ComfyUI's MaskEditor via the *Mask Editor* button), `rectangle` (drag on the player) or `freehand` (brush, lasso, eraser; outside the shape the image is filled with `fill_color`). Use *✎ Edit* to draw, click it again to use the player controls. |
+| `fill_color` | Colour outside the freehand shape. |
+| `crop_to_mask` | Crop `image` and `mask` to the bounding box of the mask. The saved file is never cropped. |
 
 ### Outputs
 
@@ -68,6 +71,7 @@ Restart ComfyUI.
 | `saved_path` | STRING | Absolute path of the saved file, empty if nothing was saved. |
 | `filename` | STRING | Video file name without extension, e.g. `clip` for `clip.mp4`. |
 | `frame_filename` | STRING | Frame name without extension, e.g. `clip_frame00123` – same stem as saved files, available in every `output_mode` (handy as `filename_prefix` for Save Image). |
+| `mask` | MASK | Mask from `mask_source`, same size as `image`. Rectangle/freehand without a drawn shape cover the whole frame. The mask is stored in the workflow and applies to whichever frame is selected. |
 
 ## Notes
 
