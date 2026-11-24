@@ -169,11 +169,12 @@ export function attachMask({ node, stage, player, getFrame, setStatus, relayout 
   for (const c of fillW?.options?.values || []) fillSel.add(new Option(c, c));
   fillSel.title = "fill_color: colour outside the freehand shape";
   fillSel.onchange = () => { fillW.value = fillSel.value; fillW.callback?.(fillW.value); };
-  const editBtn = btn("✎ Edit", "Draw on the player. Click again to use the player controls", () => setEditing(!editing));
+  const editBtn = btn("✎ Edit", "Edit the mask on the player (draw, move, resize). Click again to use the player controls", () => setEditing(!editing));
   const tools = {
     brush: btn("Brush", "Paint the area to keep", () => { tool = "brush"; refreshToolbar(); }),
     lasso: btn("Lasso", "Draw an outline, the enclosed area is kept", () => { tool = "lasso"; refreshToolbar(); }),
     erase: btn("Eraser", "Erase from the painted area", () => { tool = "erase"; refreshToolbar(); }),
+    move: btn("Move/Size", "Move or resize the drawn shape with its handles", () => { tool = "move"; refreshToolbar(); }),
   };
   const size = el("input");
   size.type = "range";
@@ -197,13 +198,13 @@ export function attachMask({ node, stage, player, getFrame, setStatus, relayout 
   srcRow.append(cropBtn);
   const hint = el("span");
   hint.style.cssText = "opacity:.7;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
-  row.append(editBtn, tools.brush, tools.lasso, tools.erase, size, fillSel, clearBtn, meBtn, meDelPaint, hint);
+  row.append(editBtn, tools.brush, tools.lasso, tools.erase, tools.move, size, fillSel, clearBtn, meBtn, meDelPaint, hint);
 
   const mode = () => srcW.value || "none";
   const drawMode = () => mode() === "rectangle" || mode() === "freehand";
 
   function setEditing(on) {
-    editing = !!on && drawMode();
+    editing = !!on && mode() !== "none";
     canvas.style.pointerEvents = editing ? "auto" : "none";
     canvas.style.cursor = "crosshair";
     refreshToolbar();
@@ -213,16 +214,16 @@ export function attachMask({ node, stage, player, getFrame, setStatus, relayout 
     const m = mode();
     shownSrc = srcW.value;
     shownCrop = !!cropW?.value;
-    if (!drawMode() && editing) setEditing(false);
+    if (mode() === "none" && editing) setEditing(false);
     row.hidden = m === "none";
     for (const [k, b] of Object.entries(srcBtns)) b.style.background = k === m ? "#2a6db0" : "";
     cropBtn.style.display = m === "none" ? "none" : "";
     cropBtn.style.background = cropW?.value ? "#2a6db0" : "";
     fillSel.style.display = m === "freehand" ? "" : "none";
     fillSel.value = fillW?.value || "yellow";
-    editBtn.style.display = drawMode() ? "" : "none";
+    editBtn.style.display = "";
     clearBtn.style.display = "";
-    size.style.display = m === "freehand" ? "" : "none";
+    size.style.display = m === "freehand" && (tool === "brush" || tool === "erase") ? "" : "none";
     for (const [k, b] of Object.entries(tools)) {
       b.style.display = m === "freehand" ? "" : "none";
       b.style.background = k === tool ? "#2a6db0" : "";
@@ -230,8 +231,8 @@ export function attachMask({ node, stage, player, getFrame, setStatus, relayout 
     meBtn.style.display = m === "MaskEditor" ? "" : "none";
     meDelPaint.style.display = m === "MaskEditor" && data.paint ? "" : "none";
     editBtn.style.background = editing ? "#2a6db0" : "";
-    hint.textContent = { rectangle: "drag on the player", freehand: "paint the area to keep",
-      MaskEditor: data.mask ? "mask shown in red" : "no mask yet" }[m] || "";
+    hint.textContent = { rectangle: "drag to draw, handles to move/size", freehand: "paint the area to keep",
+      MaskEditor: data.mask ? "mask in red, handles move/size" : "no mask yet" }[m] || "";
     draw();
   }
 
@@ -268,11 +269,59 @@ export function attachMask({ node, stage, player, getFrame, setStatus, relayout 
   const clamp01 = (v) => Math.min(1, Math.max(0, v));
   function toRel(e, box) {
     const r = canvas.getBoundingClientRect();
-    const x = e.clientX - r.left, y = e.clientY - r.top;
+    // the node can be zoomed: getBoundingClientRect is scaled, clientWidth is not
+    const x = (e.clientX - r.left) * canvas.clientWidth / r.width, y = (e.clientY - r.top) * canvas.clientHeight / r.height;
     return { x, y, rx: (x - box.x) / box.w, ry: (y - box.y) / box.h };
   }
 
   // ---------- drawing ----------
+  const HANDLES = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
+  const CURSORS = { nw: "nwse-resize", se: "nwse-resize", ne: "nesw-resize", sw: "nesw-resize",
+                    n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize", move: "move" };
+  let curBB = null;   // relative bounding box [x, y, w, h] of the current mask, target of the move/size handles
+
+  // Move/size applies to the rectangle always, to the freehand shape with the Move tool and to the MaskEditor mask.
+  const transforming = () => editing && (mode() === "rectangle" || mode() === "MaskEditor" || (mode() === "freehand" && tool === "move"));
+
+  function handlePoints(box, b) {
+    const L = box.x + b[0] * box.w, T = box.y + b[1] * box.h, R = L + b[2] * box.w, B = T + b[3] * box.h;
+    const cx = (L + R) / 2, cy = (T + B) / 2;
+    return { L, T, R, B, nw: [L, T], n: [cx, T], ne: [R, T], e: [R, cy], se: [R, B], s: [cx, B], sw: [L, B], w: [L, cy] };
+  }
+
+  function hitBB(p, box, b) {
+    const hs = handlePoints(box, b);
+    for (const k of HANDLES) if (Math.hypot(p.x - hs[k][0], p.y - hs[k][1]) <= 8) return k;
+    return p.x >= hs.L && p.x <= hs.R && p.y >= hs.T && p.y <= hs.B ? "move" : null;
+  }
+
+  function resizeBB(b, type, dx, dy, limit) {
+    const [x, y, w, h] = b;
+    const lim = (v) => (limit ? clamp01(v) : v);
+    if (type === "move") {
+      return [limit ? Math.min(Math.max(x + dx, 0), 1 - w) : x + dx, limit ? Math.min(Math.max(y + dy, 0), 1 - h) : y + dy, w, h];
+    }
+    let L = x, T = y, R = x + w, B = y + h;
+    if (type.includes("w")) L = lim(L + dx);
+    if (type.includes("e")) R = lim(R + dx);
+    if (type.includes("n")) T = lim(T + dy);
+    if (type.includes("s")) B = lim(B + dy);
+    return [Math.min(L, R), Math.min(T, B), Math.max(Math.abs(R - L), 0.005), Math.max(Math.abs(B - T), 0.005)];
+  }
+
+  // maps points of the box b0 onto the box b1
+  function moveStrokes(strokes, b0, b1) {
+    const sx = b1[2] / b0[2], sy = b1[3] / b0[3];
+    return strokes.map((st) => ({ ...st, ...(st.s ? { s: st.s * sx } : {}),
+      p: st.p.map(([x, y]) => [b1[0] + (x - b0[0]) * sx, b1[1] + (y - b0[1]) * sy]) }));
+  }
+
+  // where the whole MaskEditor mask image lands (relative) when its bounding box b0 is moved to b1
+  function maskDest(b0, b1) {
+    const sx = b1[2] / b0[2], sy = b1[3] / b0[3];
+    return [b1[0] - b0[0] * sx, b1[1] - b0[1] * sy, sx, sy];
+  }
+
   function draw() {
     const dpr = window.devicePixelRatio || 1;
     const cw = canvas.clientWidth, ch = canvas.clientHeight;
@@ -286,52 +335,66 @@ export function attachMask({ node, stage, player, getFrame, setStatus, relayout 
     ctx.clearRect(0, 0, cw, ch);
     const m = mode();
     const box = imageBox();
-    if (!box || m === "none") return;
+    if (!box || m === "none") { curBB = null; return; }
     const vw = player.videoWidth, vh = player.videoHeight;
+    const xform = drag?.xform;
 
     if (paintImg) ctx.drawImage(paintImg, box.x, box.y, box.w, box.h);
 
+    let bb = null;
     if (m === "rectangle") {
-      const rect = drag?.rect || data.rect;
-      if (!rect) return;
-      const [x, y, w, h] = rect;
-      const L = box.x + x * box.w, T = box.y + y * box.h, Wd = w * box.w, H = h * box.h;
-      ctx.fillStyle = "rgba(0,0,0,0.55)";
-      ctx.beginPath();
-      ctx.rect(box.x, box.y, box.w, box.h);
-      ctx.rect(L, T, Wd, H);
-      ctx.fill("evenodd");
-      dashed(ctx, L, T, Wd, H, `${Math.round(w * vw)}×${Math.round(h * vh)}`);
-      return;
-    }
-    if (m !== "freehand" && m !== "MaskEditor") return;
-
-    shapeCanvas.width = canvas.width;
-    shapeCanvas.height = canvas.height;
-    const sctx = shapeCanvas.getContext("2d");
-    sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    if (m === "MaskEditor") {
-      if (maskImg) sctx.drawImage(maskImg, box.x, box.y, box.w, box.h);
-    } else {
-      paintStrokes(sctx, box, drag?.stroke ? [...data.strokes, drag.stroke] : data.strokes);
-    }
-    ctx.globalAlpha = 0.5;
-    ctx.drawImage(shapeCanvas, 0, 0, cw, ch);
-    ctx.globalAlpha = 1;
-
-    if (cropW?.value && !drag && m === "freehand") {
-      const bb = alphaBounds(shapeCanvas);
+      bb = xform ? drag.bb : (drag?.rect || data.rect);
       if (bb) {
-        dashed(ctx, bb.x / dpr, bb.y / dpr, bb.w / dpr, bb.h / dpr,
-          `crop ${Math.round(bb.w / dpr / box.w * vw)}×${Math.round(bb.h / dpr / box.h * vh)}`);
+        const [x, y, w, h] = bb;
+        ctx.fillStyle = "rgba(0,0,0,0.55)";
+        ctx.beginPath();
+        ctx.rect(box.x, box.y, box.w, box.h);
+        ctx.rect(box.x + x * box.w, box.y + y * box.h, w * box.w, h * box.h);
+        ctx.fill("evenodd");
+        dashed(ctx, box.x + x * box.w, box.y + y * box.h, w * box.w, h * box.h, `${Math.round(w * vw)}×${Math.round(h * vh)}`);
+      }
+    } else if (m === "freehand" || m === "MaskEditor") {
+      shapeCanvas.width = canvas.width;
+      shapeCanvas.height = canvas.height;
+      const sctx = shapeCanvas.getContext("2d");
+      sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (m === "MaskEditor") {
+        if (maskImg) {
+          const [dx, dy, dw, dh] = xform ? maskDest(drag.bb0, drag.bb) : [0, 0, 1, 1];
+          sctx.drawImage(maskImg, box.x + dx * box.w, box.y + dy * box.h, dw * box.w, dh * box.h);
+        }
+      } else {
+        const strokes = xform ? moveStrokes(data.strokes, drag.bb0, drag.bb) : data.strokes;
+        paintStrokes(sctx, box, drag?.stroke ? [...strokes, drag.stroke] : strokes);
+      }
+      ctx.globalAlpha = 0.5;
+      ctx.drawImage(shapeCanvas, 0, 0, cw, ch);
+      ctx.globalAlpha = 1;
+
+      if (xform) {
+        bb = drag.bb;
+      } else if (!drag && (editing || cropW?.value)) {
+        const px = alphaBounds(shapeCanvas);
+        if (px) bb = [(px.x / dpr - box.x) / box.w, (px.y / dpr - box.y) / box.h, px.w / dpr / box.w, px.h / dpr / box.h];
+        if (px && cropW?.value && !editing) {
+          dashed(ctx, px.x / dpr, px.y / dpr, px.w / dpr, px.h / dpr, `crop ${Math.round(bb[2] * vw)}×${Math.round(bb[3] * vh)}`);
+        }
+      }
+      if (m === "freehand" && editing && hover && (tool === "brush" || tool === "erase")) {
+        ctx.strokeStyle = tool === "erase" ? "#f66" : "#fff";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(hover.x, hover.y, size.value / 100 * box.w / 2, 0, Math.PI * 2);
+        ctx.stroke();
       }
     }
-    if (m === "freehand" && editing && hover && tool !== "lasso") {
-      ctx.strokeStyle = tool === "erase" ? "#f66" : "#fff";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(hover.x, hover.y, size.value / 100 * box.w / 2, 0, Math.PI * 2);
-      ctx.stroke();
+    curBB = bb;
+
+    if (bb && transforming()) {
+      const hs = handlePoints(box, bb);
+      if (m !== "rectangle") dashed(ctx, hs.L, hs.T, hs.R - hs.L, hs.B - hs.T, `${Math.round(bb[2] * vw)}×${Math.round(bb[3] * vh)}`);
+      ctx.fillStyle = "#4af";
+      for (const k of HANDLES) ctx.fillRect(hs[k][0] - 4, hs[k][1] - 4, 8, 8);
     }
   }
 
@@ -344,9 +407,13 @@ export function attachMask({ node, stage, player, getFrame, setStatus, relayout 
     canvas.setPointerCapture(e.pointerId);
     const p = toRel(e, box);
     const pt = [clamp01(p.rx), clamp01(p.ry)];
-    drag = mode() === "rectangle"
-      ? { start: pt, rect: [pt[0], pt[1], 0, 0] }
-      : { stroke: { t: tool, s: size.value / 100, p: [pt] } };
+    if (transforming()) {
+      const hit = curBB && hitBB(p, box, curBB);
+      if (hit) drag = { xform: hit, start: [p.rx, p.ry], bb0: [...curBB], bb: [...curBB] };
+      else if (mode() === "rectangle") drag = { start: pt, rect: [pt[0], pt[1], 0, 0] };
+    } else {
+      drag = { stroke: { t: tool, s: size.value / 100, p: [pt] } };
+    }
     draw();
   });
   canvas.addEventListener("pointermove", (e) => {
@@ -355,13 +422,17 @@ export function attachMask({ node, stage, player, getFrame, setStatus, relayout 
     const p = toRel(e, box);
     hover = { x: p.x, y: p.y };
     if (!drag) {
+      const hit = transforming() && curBB ? hitBB(p, box, curBB) : null;
+      canvas.style.cursor = CURSORS[hit] || "crosshair";
       if (mode() === "freehand" && editing) draw();
       return;
     }
     e.preventDefault();
     e.stopPropagation();
     const pt = [clamp01(p.rx), clamp01(p.ry)];
-    if (drag.stroke) {
+    if (drag.xform) {
+      drag.bb = resizeBB(drag.bb0, drag.xform, p.rx - drag.start[0], p.ry - drag.start[1], mode() === "rectangle");
+    } else if (drag.stroke) {
       const last = drag.stroke.p[drag.stroke.p.length - 1];
       if (Math.hypot((pt[0] - last[0]) * box.w, (pt[1] - last[1]) * box.h) >= 1.5) drag.stroke.p.push(pt);
     } else {
@@ -370,18 +441,49 @@ export function attachMask({ node, stage, player, getFrame, setStatus, relayout 
     }
     draw();
   });
-  const endDrag = (e) => {
+
+  // new mask PNG (white = masked) with the MaskEditor mask moved from b0 to b1
+  function transformedMask(b0, b1) {
+    const [dx, dy, dw, dh] = maskDest(b0, b1);
+    const w = maskImg.width, h = maskImg.height;
+    const c = el("canvas");
+    c.width = w;
+    c.height = h;
+    const cx = c.getContext("2d");
+    cx.drawImage(maskImg, dx * w, dy * h, dw * w, dh * h);
+    const px = cx.getImageData(0, 0, w, h);
+    for (let i = 0; i < px.data.length; i += 4) {
+      px.data[i] = px.data[i + 1] = px.data[i + 2] = px.data[i + 3];
+      px.data[i + 3] = 255;
+    }
+    cx.putImageData(px, 0, 0);
+    return c.toDataURL("image/png");
+  }
+
+  const round4 = (v) => Math.round(v * 1e4) / 1e4;
+  const endDrag = async (e) => {
     if (!drag) return;
     e.stopPropagation();
-    if (drag.stroke) {
-      const st = drag.stroke;
+    const d = drag;
+    if (d.xform) {
+      if (mode() === "rectangle") {
+        data.rect = d.bb;
+      } else if (mode() === "freehand") {
+        data.strokes = moveStrokes(data.strokes, d.bb0, d.bb).map((st) => ({ ...st, ...(st.s ? { s: round4(st.s) } : {}),
+          p: st.p.map(([x, y]) => [round4(x), round4(y)]) }));
+      } else if (maskImg) {
+        data.mask = transformedMask(d.bb0, d.bb);
+        maskImg = await tintMask(data.mask);
+      }
+    } else if (d.stroke) {
+      const st = d.stroke;
       if (st.t !== "lasso" || st.p.length >= 3) {
-        st.p = st.p.map(([x, y]) => [Math.round(x * 1e4) / 1e4, Math.round(y * 1e4) / 1e4]);
+        st.p = st.p.map(([x, y]) => [round4(x), round4(y)]);
         if (st.t === "lasso") delete st.s;
         data.strokes.push(st);
       }
-    } else if (drag.rect[2] * player.videoWidth >= 2 && drag.rect[3] * player.videoHeight >= 2) {
-      data.rect = drag.rect;
+    } else if (d.rect[2] * player.videoWidth >= 2 && d.rect[3] * player.videoHeight >= 2) {
+      data.rect = d.rect;
     }
     drag = null;
     save();

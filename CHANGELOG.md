@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2 - 2026-11-24
+- Existing masks can be moved and resized with handles in edit mode: rectangle, freehand (Move/Size tool) and the MaskEditor mask.
+- Fix: mouse position was off when the canvas was zoomed, so shapes started at the wrong place.
+
 ## 0.2.1 - 2026-11-23
 - Mask source, crop and fill colour moved from the widget list to a toolbar directly below the player (No mask / MaskEditor / Rectangle / Freehand buttons).
 - "Delete mask" now also resets mask_source to none and releases the player controls.

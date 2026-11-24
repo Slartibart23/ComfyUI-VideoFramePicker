@@ -56,7 +56,7 @@ Restart ComfyUI.
 | `file_format` | `jpg` or `png`. |
 | `jpg_quality` | 1–100, JPEG only. |
 | `overwrite` | Overwrite existing files, otherwise append `_001`, `_002`, … |
-| `mask_source` | `none` (empty mask), `MaskEditor` (mask and paint colour painted in ComfyUI's MaskEditor via the *Mask Editor* button), `rectangle` (drag on the player) or `freehand` (brush, lasso, eraser; outside the shape the image is filled with `fill_color`). Use *✎ Edit* to draw, click it again to use the player controls. |
+| `mask_source` | `none` (empty mask), `MaskEditor` (mask and paint colour painted in ComfyUI's MaskEditor via the *Mask Editor* button), `rectangle` (drag on the player) or `freehand` (brush, lasso, eraser; outside the shape the image is filled with `fill_color`). Use *✎ Edit* to draw, click it again to use the player controls. In edit mode an existing mask can be moved and resized with its handles (rectangle always, freehand with *Move/Size*, MaskEditor mask directly). |
 | `fill_color` | Colour outside the freehand shape. |
 | `crop_to_mask` | Crop `image` and `mask` to the bounding box of the mask. The saved file is never cropped. |
 
